@@ -13,21 +13,40 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Ensures full git history for diff
+
       - name: Install Dependencies
         run: |
-          sudo apt update
-          sudo apt install -y jq curl
+          echo "🔹 Updating system and installing dependencies..."
+          sudo apt update && sudo apt install -y jq curl
+          echo "✅ Dependencies installed."
 
       - name: Install Ollama
         run: |
+          echo "🔹 Installing Ollama..."
           curl -fsSL https://ollama.com/install.sh | bash
-          nohup ollama serve > /dev/null 2>&1 &  # Run Ollama in background
+          nohup ollama serve > /dev/null 2>&1 &  # Run Ollama in the background
+          sleep 5  # Give it some time to start
+          
+          echo "🔹 Checking if Ollama is running..."
+          ps aux | grep ollama || echo "❌ Ollama is NOT running!"
+
+          echo "🔹 Listing available Ollama models..."
+          ollama list || echo "❌ Ollama model listing failed!"
 
       - name: Fetch PR Changes
         run: |
-          git fetch origin main  # Ensure main branch is up to date
-          CHANGED_FILES=$(git diff --name-only origin/main...HEAD)  # Get changed files
-          echo "Changed Files:"
+          echo "🔹 Fetching latest changes from main branch..."
+          git fetch origin main
+          
+          echo "🔹 Listing changed files in this PR..."
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
+          
+          if [[ -z "$CHANGED_FILES" ]]; then
+            echo "❌ No changed files detected! Exiting."
+            exit 1
+          fi
+          
+          echo "✅ Changed files detected:"
           echo "$CHANGED_FILES"
 
       - name: Run PR Review with Ollama
@@ -44,18 +63,31 @@ jobs:
 
           If no issues are found, just respond with: '✅ No issues found.'"
 
+          echo "🔹 Preparing PR review..."
           REVIEW_TEXT="### 🤖 PR Review Results:\n"
-
+          
           for FILE in $CHANGED_FILES; do
-            CODE=$(cat "$FILE" || echo "ERROR: Could not read file!")
-
-            if [[ -z "$CODE" ]]; then
-              continue  # Skip empty or unreadable files
+            echo "🔹 Checking if $FILE is readable..."
+            if [[ ! -f "$FILE" ]]; then
+              echo "❌ Skipping unreadable file: $FILE"
+              continue
             fi
 
-            REVIEW_RESULT=$(echo -e "$REVIEW_RULES\n\n$CODE" | ollama run pr-reviewer)
+            echo "🔹 Reading content of $FILE..."
+            CODE=$(cat "$FILE")
+          
+            if [[ -z "$CODE" ]]; then
+              echo "❌ Skipping empty file: $FILE"
+              continue
+            fi
 
-            if [[ "$REVIEW_RESULT" != *"✅ No issues found."* ]]; then
+            echo "🔹 Running Ollama review for $FILE..."
+            REVIEW_RESULT=$(echo -e "$REVIEW_RULES\n\n$CODE" | ollama run pr-reviewer)
+          
+            echo "🔹 Review result for $FILE:"
+            echo "$REVIEW_RESULT"
+
+            if [[ -n "$REVIEW_RESULT" && "$REVIEW_RESULT" != *"✅ No issues found."* ]]; then
               REVIEW_TEXT+="\n### ❌ Issues in \`$FILE\`:\n"
               REVIEW_TEXT+="$REVIEW_RESULT\n"
             fi
@@ -65,12 +97,12 @@ jobs:
             REVIEW_TEXT+="\n✅ No issues found in this PR!"
           fi
 
-          echo "REVIEW_TEXT"
+          echo "🔹 Final PR review output:"
           echo "$REVIEW_TEXT"
+
           echo -e "$REVIEW_TEXT" > pr_review.txt
 
       - name: Post PR Review Comments
         uses: thollander/actions-comment-pull-request@v2
         with:
           message: "$(cat pr_review.txt)"
-
