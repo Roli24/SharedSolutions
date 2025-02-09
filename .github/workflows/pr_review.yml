@@ -45,21 +45,3 @@ jobs:
         with:
           message: "$(cat pr_review.txt)"
 
-          echo "Changed Files:"
-          echo "$CHANGED_FILES"
-
-      - name: Run PR Review with Ollama
-        run: |
-          REVIEW_TEXT=""
-          for FILE in $CHANGED_FILES; do
-            CODE=$(cat "$FILE")
-            REVIEW_TEXT+="Review for $FILE:\n"
-            REVIEW_TEXT+="$(echo "$CODE" | ollama run pr-reviewer)\n\n"
-          done
-          echo -e "$REVIEW_TEXT" > pr_review.txt
-
-      - name: Post PR Review Comments
-        uses: thollander/actions-comment-pull-request@v2
-        with:
-          message: "$(cat pr_review.txt)"
-
