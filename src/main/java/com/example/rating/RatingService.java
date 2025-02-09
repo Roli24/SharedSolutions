@@ -31,6 +31,7 @@ public class RatingService {
             try {
                 return restTemplate.getForEntity(FEED_URL, String.class);
             } catch (Exception e) {
+                System.out.println("Test");
                 throw new RuntimeException("Failed to fetch data", e);
             }
         });
