@@ -6,11 +6,13 @@ on:
 
 jobs:
   review-pr:
-    runs-on: ubuntu-latest  # Change to macos-latest if using Mac
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Ensures full git history for diff
 
       - name: Install Dependencies
         run: |
@@ -24,7 +26,8 @@ jobs:
 
       - name: Fetch PR Changes
         run: |
-          CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
+          git fetch origin main  # Ensure main branch is up to date
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD)  # Get changed files
           echo "Changed Files:"
           echo "$CHANGED_FILES"
 
