@@ -65,6 +65,8 @@ jobs:
             REVIEW_TEXT+="\n✅ No issues found in this PR!"
           fi
 
+          echo "REVIEW_TEXT"
+          echo "$REVIEW_TEXT"
           echo -e "$REVIEW_TEXT" > pr_review.txt
 
       - name: Post PR Review Comments
