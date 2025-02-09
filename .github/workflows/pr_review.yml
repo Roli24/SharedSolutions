@@ -32,11 +32,33 @@ jobs:
 
       - name: Run PR Review with Ollama
         run: |
+          REVIEW_RULES="Please review the code following these rules and list only the violated ones:
+          - Naming conventions: Variables must use camelCase, classes must use PascalCase.
+          - Logging: Ensure proper logging is present where needed.
+          - Exception handling: Always use CustomException.
+          - No hardcoded values: Use environment variables or config files.
+          - Method size: Methods should follow the Single Responsibility Principle.
+          - Unit tests: All new methods must have tests.
+          - API standards: Endpoints must follow OpenAPI specifications.
+          - SQL safety: Use parameterized queries to prevent SQL injection.
+
+          For each rule violation, provide:
+          - The rule name
+          - The issue found
+          - The affected line number
+          - A suggested fix."
+
           REVIEW_TEXT=""
           for FILE in $CHANGED_FILES; do
             CODE=$(cat "$FILE")
-            REVIEW_TEXT+="Review for $FILE:\n"
-            REVIEW_TEXT+="$(echo "$CODE" | ollama run pr-reviewer)\n\n"
+            REVIEW_RESULT=$(echo -e "$REVIEW_RULES\n\n$CODE" | ollama run pr-reviewer)
+
+            if [[ -n "$REVIEW_RESULT" ]]; then
+              REVIEW_TEXT+="\n### ❌ Issues in $FILE:\n"
+              REVIEW_TEXT+="$REVIEW_RESULT\n"
+            else
+              REVIEW_TEXT+="\n✅ $FILE passed all checks.\n"
+            fi
           done
           echo -e "$REVIEW_TEXT" > pr_review.txt
 
