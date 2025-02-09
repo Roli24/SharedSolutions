@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +27,7 @@ public class RatingService {
     private final RatingRepository ratingRepository;
 
     public void fetchAndSaveRatings() throws InterruptedException, ExecutionException, JsonProcessingException {
+        String text = "test";
         RestTemplate restTemplate = new RestTemplate();
         CompletableFuture<ResponseEntity<String>> responseFuture = CompletableFuture.supplyAsync(() -> {
             try {
@@ -33,6 +35,7 @@ public class RatingService {
             } catch (Exception e) {
                 System.out.println("Test");
                 throw new RuntimeException("Failed to fetch data", e);
+
             }
         });
 
