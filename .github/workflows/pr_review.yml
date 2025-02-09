@@ -32,35 +32,32 @@ jobs:
 
       - name: Run PR Review with Ollama
         run: |
-          REVIEW_RULES="Please review the code following these rules and list only the violated ones:
-          - Naming conventions: Variables must use camelCase, classes must use PascalCase.
-          - Logging: Ensure proper logging is present where needed.
-          - Exception handling: Always use CustomException.
-          - No hardcoded values: Use environment variables or config files.
-          - Method size: Methods should follow the Single Responsibility Principle.
-          - Unit tests: All new methods must have tests.
-          - API standards: Endpoints must follow OpenAPI specifications.
-          - SQL safety: Use parameterized queries to prevent SQL injection.
-
-          For each rule violation, provide:
-          - The rule name
-          - The issue found
-          - The affected line number
-          - A suggested fix."
-
+          REVIEW_RULES="Please review the code and list only violated rules..."
           REVIEW_TEXT=""
+
           for FILE in $CHANGED_FILES; do
-            CODE=$(cat "$FILE")
-            REVIEW_RESULT=$(echo -e "$REVIEW_RULES\n\n$CODE" | ollama run pr-reviewer)
+            echo "🔍 Reviewing $FILE..."
+            CODE=$(cat "$FILE" || echo "ERROR: Could not read file!")
+
+            if [[ -z "$CODE" ]]; then
+              echo "❌ Skipping $FILE (empty or unreadable)"
+              continue
+            fi
+
+            REVIEW_RESULT=$(echo -e "$REVIEW_RULES\n\n$CODE" | ollama run pr-reviewer 2>&1)
 
             if [[ -n "$REVIEW_RESULT" ]]; then
+              echo "🚀 Review for $FILE:\n$REVIEW_RESULT"
               REVIEW_TEXT+="\n### ❌ Issues in $FILE:\n"
               REVIEW_TEXT+="$REVIEW_RESULT\n"
             else
+              echo "✅ $FILE passed all checks."
               REVIEW_TEXT+="\n✅ $FILE passed all checks.\n"
             fi
           done
+
           echo -e "$REVIEW_TEXT" > pr_review.txt
+          cat pr_review.txt  # Print the review results to logs
 
       - name: Post PR Review Comments
         uses: thollander/actions-comment-pull-request@v2
