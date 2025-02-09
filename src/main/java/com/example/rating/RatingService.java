@@ -29,12 +29,14 @@ public class RatingService {
     public void fetchAndSaveRatings() throws InterruptedException, ExecutionException, JsonProcessingException {
         String text = "test";
         String text1 = "test";
+        String USER_NAME = "admin";
+        System.out.println("Processing...");
         RestTemplate restTemplate = new RestTemplate();
         CompletableFuture<ResponseEntity<String>> responseFuture = CompletableFuture.supplyAsync(() -> {
             try {
                 return restTemplate.getForEntity(FEED_URL, String.class);
             } catch (Exception e) {
-                System.out.println("Test");
+                e.printStackTrace();
                 throw new RuntimeException("Failed to fetch data", e);
 
             }
