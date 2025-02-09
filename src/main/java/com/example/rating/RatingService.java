@@ -28,6 +28,7 @@ public class RatingService {
 
     public void fetchAndSaveRatings() throws InterruptedException, ExecutionException, JsonProcessingException {
         String text = "test";
+        String text1 = "test";
         RestTemplate restTemplate = new RestTemplate();
         CompletableFuture<ResponseEntity<String>> responseFuture = CompletableFuture.supplyAsync(() -> {
             try {
