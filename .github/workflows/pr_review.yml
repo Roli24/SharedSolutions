@@ -32,33 +32,40 @@ jobs:
 
       - name: Run PR Review with Ollama
         run: |
-          REVIEW_RULES="Please review the code and list only violated rules..."
-          REVIEW_TEXT=""
+          REVIEW_RULES="Please review the code and list only violated rules:
+          - Naming conventions: Variables must use camelCase, classes must use PascalCase.
+          - Logging: Ensure proper logging is present where needed.
+          - Exception handling: Always use CustomException.
+          - No hardcoded values: Use environment variables or config files.
+          - Method size: Methods should follow the Single Responsibility Principle.
+          - Unit tests: All new methods must have tests.
+          - API standards: Endpoints must follow OpenAPI specifications.
+          - SQL safety: Use parameterized queries to prevent SQL injection.
+
+          If no issues are found, just respond with: '✅ No issues found.'"
+
+          REVIEW_TEXT="### 🤖 PR Review Results:\n"
 
           for FILE in $CHANGED_FILES; do
-            echo "🔍 Reviewing $FILE..."
             CODE=$(cat "$FILE" || echo "ERROR: Could not read file!")
 
             if [[ -z "$CODE" ]]; then
-              echo "❌ Skipping $FILE (empty or unreadable)"
-              continue
+              continue  # Skip empty or unreadable files
             fi
 
-            REVIEW_RESULT=$(echo -e "$REVIEW_RULES\n\n$CODE" | ollama run pr-reviewer 2>&1)
+            REVIEW_RESULT=$(echo -e "$REVIEW_RULES\n\n$CODE" | ollama run pr-reviewer)
 
-            if [[ -n "$REVIEW_RESULT" ]]; then
-              echo "🚀 Review for $FILE:\n$REVIEW_RESULT"
-              REVIEW_TEXT+="\n### ❌ Issues in $FILE:\n"
+            if [[ "$REVIEW_RESULT" != *"✅ No issues found."* ]]; then
+              REVIEW_TEXT+="\n### ❌ Issues in \`$FILE\`:\n"
               REVIEW_TEXT+="$REVIEW_RESULT\n"
-            else
-              echo "✅ $FILE passed all checks."
-              REVIEW_TEXT+="\n✅ $FILE passed all checks.\n"
             fi
           done
 
-          echo -e "TEXT : $REVIEW_TEXT"
+          if [[ "$REVIEW_TEXT" == "### 🤖 PR Review Results:\n" ]]; then
+            REVIEW_TEXT+="\n✅ No issues found in this PR!"
+          fi
+
           echo -e "$REVIEW_TEXT" > pr_review.txt
-          cat pr_review.txt  # Print the review results to logs
 
       - name: Post PR Review Comments
         uses: thollander/actions-comment-pull-request@v2
