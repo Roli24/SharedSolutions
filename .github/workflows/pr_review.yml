@@ -51,57 +51,41 @@ jobs:
 
       - name: Run PR Review with Ollama
         run: |
-          REVIEW_RULES="Please review the code and list only violated rules:
-          - Naming conventions: Variables must use camelCase, classes must use PascalCase.
-          - Logging: Ensure proper logging is present where needed.
-          - Exception handling: Always use CustomException.
-          - No hardcoded values: Use environment variables or config files.
-          - Method size: Methods should follow the Single Responsibility Principle.
-          - Unit tests: All new methods must have tests.
-          - API standards: Endpoints must follow OpenAPI specifications.
-          - SQL safety: Use parameterized queries to prevent SQL injection.
-
-          If no issues are found, just respond with: '✅ No issues found.'"
-
           echo "🔹 Preparing PR review..."
-          REVIEW_TEXT="### 🤖 PR Review Results:\n"
-          
-          for FILE in $CHANGED_FILES; do
-            echo "🔹 Checking if $FILE is readable..."
-            if [[ ! -f "$FILE" ]]; then
-              echo "❌ Skipping unreadable file: $FILE"
-              continue
-            fi
 
-            echo "🔹 Reading content of $FILE..."
+          echo "🔹 Listing available models..."
+          ollama list
+
+          echo "🔹 Running Ollama test command..."
+          ollama run mistral-pr-review <<< "Test review input" || echo "❌ Ollama execution failed!"
+
+          echo "🔹 Processing changed files..."
+
+          for FILE in $(git diff --name-only origin/main...HEAD); do
+            echo "🔹 Reading $FILE..."
             CODE=$(cat "$FILE")
-          
+
             if [[ -z "$CODE" ]]; then
               echo "❌ Skipping empty file: $FILE"
               continue
             fi
 
-            echo "🔹 Running Ollama review for $FILE..."
-            REVIEW_RESULT=$(echo -e "$REVIEW_RULES\n\n$CODE" | ollama run pr-reviewer)
-          
-            echo "🔹 Review result for $FILE:"
+            echo -e "Review the following Java PR:\n\n$CODE" > input_for_ollama.txt
+            echo "🔹 Input to Ollama:"
+            cat input_for_ollama.txt
+
+            REVIEW_RESULT=$(cat input_for_ollama.txt | ollama run mistral-pr-review || echo "❌ Ollama execution failed!")
+
+            echo "🔹 Ollama output:"
             echo "$REVIEW_RESULT"
 
             if [[ -n "$REVIEW_RESULT" && "$REVIEW_RESULT" != *"✅ No issues found."* ]]; then
-              REVIEW_TEXT+="\n### ❌ Issues in \`$FILE\`:\n"
-              REVIEW_TEXT+="$REVIEW_RESULT\n"
+              echo "### ❌ Issues in \`$FILE\`:\n$REVIEW_RESULT" >> pr_review.txt
             fi
           done
 
-          if [[ "$REVIEW_TEXT" == "### 🤖 PR Review Results:\n" ]]; then
-            REVIEW_TEXT+="\n✅ No issues found in this PR!"
-          fi
-
           echo "🔹 Final PR review output:"
-          echo "$REVIEW_TEXT"
-
-          echo -e "$REVIEW_TEXT" > pr_review.txt
-
+          cat pr_review.txt
       - name: Post PR Review Comments
         uses: thollander/actions-comment-pull-request@v2
         with:
