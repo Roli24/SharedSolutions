@@ -20,35 +20,58 @@ jobs:
           sudo apt update && sudo apt install -y jq curl
           echo "✅ Dependencies installed."
 
-      - name: Check if Ollama is Installed
-        id: check_ollama
+      - name: Install Ollama (if not already installed)
         run: |
-          if command -v ollama &> /dev/null; then
-            echo "✅ Ollama is already installed."
-            echo "installed=true" >> $GITHUB_ENV
+          if ! command -v ollama &> /dev/null; then
+            echo "🔹 Installing Ollama..."
+            curl -fsSL https://ollama.com/install.sh | bash
+            nohup ollama serve > /dev/null 2>&1 &  # Run Ollama in the background
+            sleep 5  # Give it some time to start
+            echo "✅ Ollama installed and running."
           else
-            echo "❌ Ollama not found. Installing..."
-            echo "installed=false" >> $GITHUB_ENV
+            echo "✅ Ollama is already installed."
           fi
 
-      - name: Install Ollama (if not installed)
-        if: env.installed == 'false'
+      - name: Create Modelfile for AI Review
         run: |
-          echo "🔹 Installing Ollama..."
-          curl -fsSL https://ollama.com/install.sh | bash
-          nohup ollama serve > /dev/null 2>&1 &  # Run Ollama in the background
-          sleep 5  # Give it some time to start
-          echo "✅ Ollama installed and running."
+          echo "🔹 Creating Modelfile for PR review..."
+          
+          cat <<EOF > Modelfile
+          FROM mistral
 
-      - name: Check for Custom AI Model
-        id: check_model
+          SYSTEM "You are an AI-powered PR reviewer for Java code. Review files strictly based on these rules and return issues in a structured format:
+
+          - **Use camelCase for variables**, PascalCase for classes.
+          - **Ensure proper logging** is present for all methods.
+          - **Use CustomException** for handling errors instead of generic exceptions.
+          - **No hardcoded values**; use environment variables or constants.
+          - **Methods should follow the Single Responsibility Principle (SRP)**.
+          - **All new methods must have tests**.
+
+          Return the output in JSON format:
+          [
+            {
+              'file': '<file_name>',
+              'line': <line_number>,
+              'rule_violated': '<rule>',
+              'description': '<detailed explanation>'
+            }
+          ]
+
+          If there are no issues, return an empty array: []
+          "
+          EOF
+
+          echo "✅ Modelfile created."
+
+      - name: Create Custom AI Model (if not exists)
         run: |
           if ollama list | grep -q "my-pr-review-model"; then
-            echo "✅ Custom AI model 'my-pr-review-model' exists."
-            echo "model_exists=true" >> $GITHUB_ENV
+            echo "✅ Custom AI model already exists."
           else
-            echo "❌ Custom AI model not found!"
-            echo "model_exists=false" >> $GITHUB_ENV
+            echo "🔹 Creating custom AI model..."
+            ollama create my-pr-review-model -f Modelfile
+            echo "✅ Custom AI model 'my-pr-review-model' created."
           fi
 
       - name: Fetch PR Changes
@@ -81,29 +104,17 @@ jobs:
               continue
             fi
 
-            echo "💡 Running AI model on $FILE"
-            REVIEW_RESULT=$(echo -e "Review the following Java file ($FILE) and return:
-            - **Which rule is violated** from the list below.
-            - **The specific line number** where the issue occurs.
-            - **A short explanation** for each violation.
+            # Run the custom AI model for review and parse structured JSON output
+            REVIEW_RESULT=$(echo -e "Review the following Java file and return issues in JSON format:\n\n$CODE" | ollama run my-pr-review-model)
 
-            📌 **Rules**:
-            1️⃣ **Naming Convention**: camelCase for variables, PascalCase for classes.
-            2️⃣ **Logging**: Ensure proper logging.
-            3️⃣ **Exception Handling**: Use CustomException instead of generic exceptions.
-            4️⃣ **No Hardcoded Values**: Use environment variables.
-            5️⃣ **Single Responsibility Principle (SRP)**: Each method should do one thing.
-            6️⃣ **Testing**: New methods must have tests.
-
-            File Content:
-            $CODE" | ollama run my-pr-review-model 2>&1)  # Capture stderr
-
-            if [[ -n "$REVIEW_RESULT" && "$REVIEW_RESULT" != *"✅ No issues found."* ]]; then
-              echo "💡 AI Output: $REVIEW_RESULT"
-              echo -e "### ❌ Issues in \`$FILE\`:\n$REVIEW_RESULT" >> pr_review.txt
-            else
-              echo "✅ No issues found in $FILE"
+            if [[ -z "$REVIEW_RESULT" || "$REVIEW_RESULT" == "[]" ]]; then
+              echo "✅ No issues found in $FILE."
+              continue
             fi
+
+            # Process JSON output and format for GitHub comment
+            echo "### ❌ Issues in \`$FILE\`:" >> pr_review.txt
+            echo "$REVIEW_RESULT" | jq -r '.[] | "🚨 Line \(.line): **\(.rule_violated)** - \(.description)"' >> pr_review.txt
           done
 
           echo "🔹 Final PR review output:"
