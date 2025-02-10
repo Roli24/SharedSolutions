@@ -81,8 +81,24 @@ jobs:
               continue
             fi
 
-            # Run the custom AI model for review with file name
-            REVIEW_RESULT=$(echo -e "Review the following Java file ($FILE) and include line numbers for violations:\n\n$CODE" | ollama run my-pr-review-model || echo "❌ Ollama execution failed!")
+            # Run the custom AI model for review with structured rule violations
+            REVIEW_RESULT=$(echo -e "Review the following Java file ($FILE) and identify:
+            - **Which rules are violated** from the list below.
+            - **The specific line numbers** where the violation occurs.
+            - **A brief explanation** for each issue.
+
+            📌 **Rules for Review**:
+            1️⃣ **Naming Convention**: Variables must use camelCase, classes must use PascalCase.
+            2️⃣ **Logging**: Proper logging should be present in methods.
+            3️⃣ **Exception Handling**: Use CustomException instead of generic exceptions.
+            4️⃣ **Avoid Hardcoded Values**: Use environment variables instead.
+            5️⃣ **Single Responsibility Principle (SRP)**: Methods should follow SRP.
+            6️⃣ **Testing**: All new methods must have corresponding test cases.
+
+            Now analyze the file and return a structured list of violations with line numbers.
+
+            File Content:
+            $CODE" | ollama run my-pr-review-model || echo "❌ Ollama execution failed!")
 
             if [[ -n "$REVIEW_RESULT" && "$REVIEW_RESULT" != *"✅ No issues found."* ]]; then
               echo -e "### ❌ Issues in \`$FILE\`:\n$REVIEW_RESULT" >> pr_review.txt
