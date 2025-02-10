@@ -26,12 +26,27 @@ jobs:
           curl -fsSL https://ollama.com/install.sh | bash
           nohup ollama serve > /dev/null 2>&1 &  # Run Ollama in the background
           sleep 5  # Give it some time to start
-          
-          echo "🔹 Checking if Ollama is running..."
-          ps aux | grep ollama || echo "❌ Ollama is NOT running!"
+          echo "✅ Ollama installed and running."
 
-          echo "🔹 Listing available Ollama models..."
-          ollama list || echo "❌ Ollama model listing failed!"
+      - name: Create Custom AI Model
+        run: |
+          echo "🔹 Creating Custom AI Model for PR Review..."
+          
+          # Define the Modelfile dynamically
+          cat <<EOF > Modelfile
+          FROM mistral
+          SYSTEM "You are an AI-powered PR reviewer. Review the provided code based on the following rules:
+          - Use camelCase for variables, PascalCase for classes.
+          - Ensure proper logging is present.
+          - Use CustomException for errors.
+          - No hardcoded values; use environment variables.
+          - Methods should follow Single Responsibility Principle.
+          - All new methods must have tests."
+          EOF
+
+          # Create the custom model
+          ollama create my-pr-review-model -f Modelfile
+          echo "✅ Custom AI Model 'my-pr-review-model' created."
 
       - name: Fetch PR Changes
         run: |
@@ -49,20 +64,15 @@ jobs:
           echo "✅ Changed files detected:"
           echo "$CHANGED_FILES"
 
-      - name: Run PR Review with Ollama
+      - name: Run PR Review with Custom AI Model
         run: |
-          echo "🔹 Preparing PR review..."
+          echo "🔹 Running PR review with custom AI model..."
 
-          echo "🔹 Listing available models..."
-          ollama list
-
-          echo "🔹 Running Ollama test command..."
-          ollama run mistral-pr-review <<< "Test review input" || echo "❌ Ollama execution failed!"
-
-          echo "🔹 Processing changed files..."
+          # Initialize review file
+          echo "### 🤖 PR Review Bot Results:" > pr_review.txt
 
           for FILE in $(git diff --name-only origin/main...HEAD); do
-            echo "🔹 Reading $FILE..."
+            echo "🔹 Reviewing $FILE..."
             CODE=$(cat "$FILE")
 
             if [[ -z "$CODE" ]]; then
@@ -70,14 +80,8 @@ jobs:
               continue
             fi
 
-            echo -e "Review the following Java PR:\n\n$CODE" > input_for_ollama.txt
-            echo "🔹 Input to Ollama:"
-            cat input_for_ollama.txt
-
-            REVIEW_RESULT=$(cat input_for_ollama.txt | ollama run mistral-pr-review || echo "❌ Ollama execution failed!")
-
-            echo "🔹 Ollama output:"
-            echo "$REVIEW_RESULT"
+            # Run the custom AI model for review
+            REVIEW_RESULT=$(echo -e "Review the following Java PR:\n\n$CODE" | ollama run my-pr-review-model || echo "❌ Ollama execution failed!")
 
             if [[ -n "$REVIEW_RESULT" && "$REVIEW_RESULT" != *"✅ No issues found."* ]]; then
               echo "### ❌ Issues in \`$FILE\`:\n$REVIEW_RESULT" >> pr_review.txt
@@ -86,6 +90,7 @@ jobs:
 
           echo "🔹 Final PR review output:"
           cat pr_review.txt
+
       - name: Post PR Review Comments
         uses: thollander/actions-comment-pull-request@v2
         with:
