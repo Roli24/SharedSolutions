@@ -35,33 +35,32 @@ jobs:
       - name: Create Modelfile for AI Review
         run: |
           echo "🔹 Creating Modelfile for PR review..."
-          
           cat <<EOF > Modelfile
           FROM mistral
 
-          SYSTEM "You are an AI-powered PR reviewer for Java code. Review files strictly based on these rules and return issues in a structured format:
-
+          SYSTEM """
+          You are an AI-powered PR reviewer for Java code. Review files strictly based on these rules and return issues in a structured format:
+          
           - **Use camelCase for variables**, PascalCase for classes.
           - **Ensure proper logging** is present for all methods.
           - **Use CustomException** for handling errors instead of generic exceptions.
           - **No hardcoded values**; use environment variables or constants.
           - **Methods should follow the Single Responsibility Principle (SRP)**.
           - **All new methods must have tests**.
-
+          
           Return the output in JSON format:
           [
             {
-              'file': '<file_name>',
-              'line': <line_number>,
-              'rule_violated': '<rule>',
-              'description': '<detailed explanation>'
+              "file": "<file_name>",
+              "line": <line_number>,
+              "rule_violated": "<rule>",
+              "description": "<detailed explanation>"
             }
           ]
-
+          
           If there are no issues, return an empty array: []
-          "
+          """
           EOF
-
           echo "✅ Modelfile created."
 
       - name: Create Custom AI Model (if not exists)
@@ -70,8 +69,13 @@ jobs:
             echo "✅ Custom AI model already exists."
           else
             echo "🔹 Creating custom AI model..."
-            ollama create my-pr-review-model -f Modelfile
-            echo "✅ Custom AI model 'my-pr-review-model' created."
+            if [[ -f "Modelfile" ]]; then
+              ollama create my-pr-review-model -f Modelfile
+              echo "✅ Custom AI model 'my-pr-review-model' created."
+            else
+              echo "❌ Modelfile not found. Skipping model creation."
+              exit 1
+            fi
           fi
 
       - name: Fetch PR Changes
@@ -105,16 +109,20 @@ jobs:
             fi
 
             # Run the custom AI model for review and parse structured JSON output
-            REVIEW_RESULT=$(echo -e "Review the following Java file and return issues in JSON format:\n\n$CODE" | ollama run my-pr-review-model)
+            REVIEW_RESULT=$(echo -e "Review the following Java file and return issues in JSON format:\n\n$CODE" | ollama run my-pr-review-model || echo "[]")
 
-            if [[ -z "$REVIEW_RESULT" || "$REVIEW_RESULT" == "[]" ]]; then
+            if [[ "$REVIEW_RESULT" == "[]" ]]; then
               echo "✅ No issues found in $FILE."
               continue
             fi
 
-            # Process JSON output and format for GitHub comment
-            echo "### ❌ Issues in \`$FILE\`:" >> pr_review.txt
-            echo "$REVIEW_RESULT" | jq -r '.[] | "🚨 Line \(.line): **\(.rule_violated)** - \(.description)"' >> pr_review.txt
+            # Validate JSON output before appending
+            if echo "$REVIEW_RESULT" | jq empty 2>/dev/null; then
+              echo "### ❌ Issues in \`$FILE\`:" >> pr_review.txt
+              echo "$REVIEW_RESULT" | jq -r '.[] | "🚨 Line \(.line): **\(.rule_violated)** - \(.description)"' >> pr_review.txt
+            else
+              echo "❌ Invalid JSON output from AI review for $FILE. Skipping..."
+            fi
           done
 
           echo "🔹 Final PR review output:"
@@ -132,4 +140,3 @@ jobs:
         uses: thollander/actions-comment-pull-request@v2
         with:
           message: "${{ env.PR_REVIEW_CONTENT }}"
-
