@@ -81,26 +81,27 @@ jobs:
               continue
             fi
 
-            # Run the custom AI model for review
-            REVIEW_RESULT=$(echo -e "Review the following Java PR:\n\n$CODE" | ollama run my-pr-review-model || echo "❌ Ollama execution failed!")
+            # Run the custom AI model for review with file name
+            REVIEW_RESULT=$(echo -e "Review the following Java file ($FILE) and include line numbers for violations:\n\n$CODE" | ollama run my-pr-review-model || echo "❌ Ollama execution failed!")
 
             if [[ -n "$REVIEW_RESULT" && "$REVIEW_RESULT" != *"✅ No issues found."* ]]; then
-              echo "### ❌ Issues in \`$FILE\`:\n$REVIEW_RESULT" >> pr_review.txt
+              echo -e "### ❌ Issues in \`$FILE\`:\n$REVIEW_RESULT" >> pr_review.txt
             fi
           done
 
           echo "🔹 Final PR review output:"
           cat pr_review.txt
-    
 
       - name: Debug PR Review Output
         run: |
           echo "🔹 PR Review Output:"
-          cat pr_review.txt  # Print the content to verify
+          cat pr_review.txt  # Prints the content for debugging
+
+      - name: Load PR Review Output into ENV
+        run: echo "PR_REVIEW_CONTENT<<EOF" >> $GITHUB_ENV && cat pr_review.txt >> $GITHUB_ENV && echo "EOF" >> $GITHUB_ENV
 
       - name: Post PR Review Comments
         uses: thollander/actions-comment-pull-request@v2
-        env:
-          PR_REVIEW_CONTENT: "$(cat pr_review.txt)"  # Store review output in an env variable
         with:
           message: "${{ env.PR_REVIEW_CONTENT }}"
+
