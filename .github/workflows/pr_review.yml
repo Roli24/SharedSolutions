@@ -20,7 +20,19 @@ jobs:
           sudo apt update && sudo apt install -y jq curl
           echo "✅ Dependencies installed."
 
-      - name: Install Ollama
+      - name: Check if Ollama is Installed
+        id: check_ollama
+        run: |
+          if command -v ollama &> /dev/null; then
+            echo "✅ Ollama is already installed."
+            echo "installed=true" >> $GITHUB_ENV
+          else
+            echo "❌ Ollama not found. Installing..."
+            echo "installed=false" >> $GITHUB_ENV
+          fi
+
+      - name: Install Ollama (if not installed)
+        if: env.installed == 'false'
         run: |
           echo "🔹 Installing Ollama..."
           curl -fsSL https://ollama.com/install.sh | bash
@@ -28,25 +40,16 @@ jobs:
           sleep 5  # Give it some time to start
           echo "✅ Ollama installed and running."
 
-      - name: Create Custom AI Model
+      - name: Check for Custom AI Model
+        id: check_model
         run: |
-          echo "🔹 Creating Custom AI Model for PR Review..."
-          
-          # Define the Modelfile dynamically
-          cat <<EOF > Modelfile
-          FROM mistral
-          SYSTEM "You are an AI-powered PR reviewer. Review Java files only based on these rules:
-          - Use camelCase for variables, PascalCase for classes.
-          - Ensure proper logging is present.
-          - Use CustomException for errors.
-          - No hardcoded values; use environment variables.
-          - Methods should follow the Single Responsibility Principle.
-          - All new methods must have tests."
-          EOF
-
-          # Create the custom model
-          ollama create my-pr-review-model -f Modelfile
-          echo "✅ Custom AI Model 'my-pr-review-model' created."
+          if ollama list | grep -q "my-pr-review-model"; then
+            echo "✅ Custom AI model 'my-pr-review-model' exists."
+            echo "model_exists=true" >> $GITHUB_ENV
+          else
+            echo "❌ Custom AI model not found!"
+            echo "model_exists=false" >> $GITHUB_ENV
+          fi
 
       - name: Fetch PR Changes
         run: |
@@ -88,8 +91,16 @@ jobs:
 
           echo "🔹 Final PR review output:"
           cat pr_review.txt
+    
+
+      - name: Debug PR Review Output
+        run: |
+          echo "🔹 PR Review Output:"
+          cat pr_review.txt  # Print the content to verify
 
       - name: Post PR Review Comments
         uses: thollander/actions-comment-pull-request@v2
+        env:
+          PR_REVIEW_CONTENT: "$(cat pr_review.txt)"  # Store review output in an env variable
         with:
-          message: "$(cat pr_review.txt)"
+          message: "${{ env.PR_REVIEW_CONTENT }}"
