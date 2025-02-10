@@ -35,12 +35,12 @@ jobs:
           # Define the Modelfile dynamically
           cat <<EOF > Modelfile
           FROM mistral
-          SYSTEM "You are an AI-powered PR reviewer. Review the provided code based on the following rules:
+          SYSTEM "You are an AI-powered PR reviewer. Review Java files only based on these rules:
           - Use camelCase for variables, PascalCase for classes.
           - Ensure proper logging is present.
           - Use CustomException for errors.
           - No hardcoded values; use environment variables.
-          - Methods should follow Single Responsibility Principle.
+          - Methods should follow the Single Responsibility Principle.
           - All new methods must have tests."
           EOF
 
@@ -54,24 +54,22 @@ jobs:
           git fetch origin main
           
           echo "🔹 Listing changed files in this PR..."
-          CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
-          
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD | grep '\.java$' || true)
+
           if [[ -z "$CHANGED_FILES" ]]; then
-            echo "❌ No changed files detected! Exiting."
-            exit 1
+            echo "✅ No Java files detected. Skipping review."
+            exit 0
           fi
           
-          echo "✅ Changed files detected:"
+          echo "✅ Java files detected for review:"
           echo "$CHANGED_FILES"
 
       - name: Run PR Review with Custom AI Model
         run: |
           echo "🔹 Running PR review with custom AI model..."
-
-          # Initialize review file
           echo "### 🤖 PR Review Bot Results:" > pr_review.txt
 
-          for FILE in $(git diff --name-only origin/main...HEAD); do
+          for FILE in $(git diff --name-only origin/main...HEAD | grep '\.java$' || true); do
             echo "🔹 Reviewing $FILE..."
             CODE=$(cat "$FILE")
 
