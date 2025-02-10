@@ -46,6 +46,7 @@ jobs:
           - **Use CustomException** for handling errors instead of generic exceptions.
           - **No hardcoded values**; use environment variables or constants.
           - **Methods should follow the Single Responsibility Principle (SRP)**.
+          - **Code should be readable and cleaner**.
           - **All new methods must have tests**.
           
           Return the output in JSON format:
