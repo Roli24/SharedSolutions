@@ -29,7 +29,15 @@ public class RatingService {
     public void fetchAndSaveRatings() throws InterruptedException, ExecutionException, JsonProcessingException {
         String text = "test";
         String text1 = "test";
+        text = "test";
+        text1 = "test";
         String USER_NAME = "admin";
+        System.out.println("Processing...");
+        System.out.println("Processing...");
+        System.out.println("Processing...");
+        System.out.println("Processing...");
+        System.out.println("Processing...");
+        System.out.println("Processing...");
         System.out.println("Processing...");
         RestTemplate restTemplate = new RestTemplate();
         CompletableFuture<ResponseEntity<String>> responseFuture = CompletableFuture.supplyAsync(() -> {
