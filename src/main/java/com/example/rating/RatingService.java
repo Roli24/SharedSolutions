@@ -33,6 +33,14 @@ public class RatingService {
         text1 = "test";
         String USER_NAME = "admin";
         System.out.println("Processing...");
+
+        // Potential null pointer exception
+        String value = null;
+        if (value.equals("test")) {
+            System.out.println("Value is test");
+        }
+
+        System.out.println("Processing...");
         System.out.println("Processing...");
         System.out.println("Processing...");
         System.out.println("Processing...");
