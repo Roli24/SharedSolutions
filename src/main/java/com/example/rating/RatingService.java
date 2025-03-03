@@ -58,6 +58,16 @@ public class RatingService {
             }
         });
 
+        List<String> list1 = Stream.of("Apple", "Banana", "Cherry")
+                .collect(Collectors.toList());
+
+        // Recommended approach in Java 16+
+        List<String> list2 = Stream.of("Apple", "Banana", "Cherry")
+                .toList();
+
+        System.out.println("Using Collectors.toList(): " + list1);
+        System.out.println("Using .toList(): " + list2);
+
         // Wait for the response asynchronously
         ResponseEntity<String> response = responseFuture.get();
 
